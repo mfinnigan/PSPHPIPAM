@@ -121,7 +121,7 @@ function Invoke-PhpIpamExecute{
       specify your contenType
 
       .EXAMPLE
-      invoke-PHPIpamExecute -method get  -controller sections 
+      invoke-PHPIpamExecute -method get  -controller sections
 
       .EXAMPLE
       /api/my_app/sections/
@@ -214,7 +214,7 @@ function Invoke-PhpIpamExecute{
                     $query_hash=@{}+$params
                 }
                 $query_hash.Add("controller",$controller)
-                $json_request=$query_hash|ConvertTo-Json -Compress 
+                $json_request=$query_hash|ConvertTo-Json -Compress
                 Write-Verbose "json_request: $(convertto-json $json_request)"
                 $crypt_request=Protect-Rijndael256ECB -Key $Global:PhpipamAppKey -Plaintext $json_request
                 $Encode_Crypt_request=[System.Web.HttpUtility]::UrlEncode($crypt_request)
@@ -262,7 +262,7 @@ function Remove-PhpIpamSession{
 
   <#
      .DESCRIPTION
-      Clears the globally set credentials. Use at the end of a session or automation script. Takes no args. 
+      Clears the globally set credentials. Use at the end of a session or automation script. Takes no args.
 
       .EXAMPLE
       Remove-phpipamSession
@@ -303,17 +303,14 @@ function New-PhpIpamSession{
       .PARAMETER $AppKey
       AppKey for phpipam
 
-      .PARAMETER $Username
-      Username for phpipam
-
-      .PARAMETER $Password
-      Password for phpipam
+      .PARAMETER $credential
+      Pass in a PSCredential
 
       .EXAMPLE
-      New-PhpIpamSession -userCredAuth 
+      New-PhpIpamSession -userCredAuth
 
       .EXAMPLE
-      New-PhpIpamSession -useCredAuth -phpIpamApiUrl http://ipam/api/ -username username -password password -appid script
+      New-PhpIpamSession -useCredAuth -phpIpamApiUrl http://ipam/api/ -credential $creds -appid script
 
       .EXAMPLE
       New-PhpIpamSession -useAppKeyAuth -PhpIpamApiUrl http://ipam/api/ -appid script -appkey 'de36328dbe3df0bc7d39ff2306e9aesa'
@@ -340,11 +337,8 @@ function New-PhpIpamSession{
         [validatepattern("^[0-9a-fA-f]{32}$")]
         [string]$AppKey,
 
-        [parameter(mandatory=$true,ParameterSetName="UseCredAuth", HelpMessage="Enter the Username of PhpIpam.")]
-        [string]$userName,
-
-        [parameter(mandatory=$true,ParameterSetName="UseCredAuth", HelpMessage="Enter The password of PhpIpam.")]
-        [string]$password
+        [parameter(mandatory=$true,ParameterSetName="UseCredAuth", HelpMessage="Enter credentials")]
+        [PSCredential]$credential
 
         )
 
@@ -353,7 +347,7 @@ function New-PhpIpamSession{
         }
 
         if($useCredAuth){
-            $token="{0}:{1}" -f $username,$password
+            $token="{0}:{1}" -f $credential.username,$credential.GetNetworkCredential().password
             $base64Token=[convert]::ToBase64String([char[]]$token)
 
             $headers=@{
@@ -366,8 +360,7 @@ function New-PhpIpamSession{
                 if($r -and $r.success){
                 # success
 
-                    $global:PhpIpamUsername =$username
-                    $global:PhpIpamPassword =$password
+                    $global:PhpIpamcredential =$credential
                     $global:PhpIpamApiUrl =$PhpIpamApiUrl
                     $global:PhpIpamAppID=$AppID
                     $global:PhpIpamToken=$r.data.token
@@ -389,9 +382,9 @@ function New-PhpIpamSession{
             $enc_request=Protect-Rijndael256ECB -Key $AppKey -Plaintext $request_json
             $Encode_Crypt_request=[System.Web.HttpUtility]::UrlEncode($enc_request)
             $uri="{0}/?app_id={1}&enc_request={2}" -f $PhpIpamApiUrl,$AppID,$Encode_Crypt_request
-            
+
             try{
-                $r=Invoke-RestMethod -Method get -Uri $uri 
+                $r=Invoke-RestMethod -Method get -Uri $uri
                 write-debug $r
                 if($r -and $r.success){
                 # success
@@ -406,7 +399,7 @@ function New-PhpIpamSession{
 
             }catch{
                 write-error $_.ErrorDetails.message
-                return $null 
+                return $null
             }
         }
 }
@@ -452,7 +445,7 @@ param(
             }
         }
         if($TokenStatus -eq "Expired" -or $force){
-            if(New-PhpIpamSession -useCredAuth -PhpIpamApiUrl $global:PhpIpamApiUrl -AppID $Global:PhpIpamAppID -userName $global:PhpIpamUsername -password $global:PhpIpamPassword){
+            if(New-PhpIpamSession -useCredAuth -PhpIpamApiUrl $global:PhpIpamApiUrl -AppID $Global:PhpIpamAppID -credential $Global:PhpIpamcredential){
                 return $global:PhpIpamTokenExpires
             }
         }
@@ -480,37 +473,37 @@ function Convert-IdentifiersArrayToHashTable{
    }
 
 
-   function ConvertTo-PsCustomObjectFromHashtable { 
-     param ( 
-         [Parameter(  
-             Position = 0,   
-             Mandatory = $true,   
-             ValueFromPipeline = $true,  
-             ValueFromPipelineByPropertyName = $true  
-         )][hashtable] $hashtable 
-     ); 
-     
-     begin { $i = 0; } 
-     
+   function ConvertTo-PsCustomObjectFromHashtable {
+     param (
+         [Parameter(
+             Position = 0,
+             Mandatory = $true,
+             ValueFromPipeline = $true,
+             ValueFromPipelineByPropertyName = $true
+         )][hashtable] $hashtable
+     );
+
+     begin { $i = 0; }
+
      process {
         return $([PSCustomObject]$hashtable )
-     } 
+     }
 }
-function ConvertTo-HashtableFromPsCustomObject { 
-     param ( 
-         [Parameter(  
-             Position = 0,   
-             Mandatory = $true,   
-             ValueFromPipeline = $true,  
-             ValueFromPipelineByPropertyName = $true  
-         )] $inputObject 
-     ); 
-     
-     process { 
-            $output = @{}; 
-            $inputObject | Get-Member -MemberType *Property | % { 
-                $output.($_.name) = $inputObject.($_.name); 
-            } 
-            return $output;  
-     } 
+function ConvertTo-HashtableFromPsCustomObject {
+     param (
+         [Parameter(
+             Position = 0,
+             Mandatory = $true,
+             ValueFromPipeline = $true,
+             ValueFromPipelineByPropertyName = $true
+         )] $inputObject
+     );
+
+     process {
+            $output = @{};
+            $inputObject | Get-Member -MemberType *Property | % {
+                $output.($_.name) = $inputObject.($_.name);
+            }
+            return $output;
+     }
 }
